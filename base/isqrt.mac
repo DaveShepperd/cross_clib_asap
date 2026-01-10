@@ -1,0 +1,46 @@
+	.radix	10.
+X	=	%4
+M2	=	%3
+XROOT	=	%1
+X2	=	%2
+ARG	=	%1
+RET	=	%28
+	.globl __isqrt
+__isqrt:
+	ADD	X,%0,ARG
+	ADD	XROOT,%0,0
+	ADD	M2,%0,1
+	ASHL	M2,M2,30
+
+	ADD	X2,XROOT,M2
+L2:	SUB.C	%0,X,X2
+	BCC	L4			; branch if X2 > X
+	LSHR 	XROOT,XROOT,1		; do shift in delay slot
+	SUB 	X,X,X2
+	ADD 	XROOT,XROOT,M2
+L4:
+	LSHR.C M2,M2,2
+	BNE L2				; Branches one past start of loop
+	ADD	X2,XROOT,M2		; Copy of (real) target in delay slot
+
+; If we _want_ to round, The next four lines will:
+; 1) set carry if X <= XROOT
+;	SUB.C	%0,XROOT,X
+; 2) branch around if carry set (x <= xroot) (no good use for delay slot)
+;	BHS L6
+;	ADD	%0,%0,0
+; 3) add one to root if carry clear
+;	ADD	XROOT,XROOT,1		; r3,1,r3
+;---- Alternatively, we can get the same effect (notice that at no time
+;	do my fingers leave the ends of my hands :-) By noticing that
+;	(X > XROOT) iff ( X >= XROOT+1) and (xroot+1) cannot overflow
+;	32 bits, so it is safe to "pre-add" the rounding and conditionally
+;	"take it back". The last of these three instructions can actually
+;	fall into the delay slot of the "RTS"
+
+	ADD	XROOT,XROOT,1		; Bump XROOT so that
+	SUB.C	%0,X,XROOT		; Sets C if X >= (XROOT+1)
+;	SUBC	XROOT,XROOT,0		; keep (xroot+1) if so
+L6:
+	JSR	%0,RET[0]
+	SUBC	XROOT,XROOT,0		; keep (xroot+1) if so

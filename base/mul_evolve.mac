@@ -1,0 +1,481 @@
+;	This file contains the "evolution" of the ASAP multiply routine(s).
+;   It was produced by gathering the files mul_*.s and in some cases adding
+;   annotiation and correcting typos. To get any particular version, define
+;   the symbol corresponding to the original file name. For example, to
+;   assemble a file corresponding to mul_naive.s, you would define a symbol
+;   mul_naive == 1 and assemble this file.
+;	ALL the routines have the first few lines in common:
+
+	.globl	umult,smult
+; Multiply subroutine. Assumes return address in RET, multiplies ARG1 by ARG2
+;	leaving result in PROD
+
+ARG1	=	%1
+ARG2	=	%2
+PROD	=	%1
+RET	=	%28.
+MPLIER	=	%3
+
+umult:	ADD	MPLIER,%0,ARG1
+	BRA	MCOM
+	ADD	PROD,%0,0	;Clear Product
+
+smult:	ADD.C	MPLIER,%0,ARG1
+	BPL	MCOM
+	ADD	PROD,%0,0	;Clear Product
+
+;If multiplier was negative, flip both to preserve sign of result
+	SUB	MPLIER,%0,MPLIER
+	SUB	ARG2,%0,ARG2
+
+; The various routines diverge here, where umul and smul merge at
+; at 3 (umul) 3 (smul +) 5 (smul -) cycles past entry.
+
+	.if	df,mul_naive
+;	From file mul_naive.s
+; The naive, straightforward multiply follows the pencil and paper method
+; we were taught in school, but in binary, which makes the "form a partial
+; product from each digit of the multiplier times the multiplicand" trivial.
+; The loop below takes 5 or 6 cycles per bit, bailing out as soon as the
+; multiplier goes to zero. adding the 2 cycle exit, this works out to
+; 10-199 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (6+(5.5*16)) = 94 cycles.
+; This routine takes 8 instructions, plus the 8 of the common code for
+; 16 instructions (64 bytes).
+MCOM:
+.L20:	AND.C	%0,MPLIER,1	;Check multiplier LSB 
+	BEQ	.L30
+	LSHR.C	MPLIER,MPLIER,1	; shift multiplier down in delay slot
+
+	ADD	PROD,PROD,ARG2
+.L30:	BNE	.L20		;Loop until no more multiplier bits
+	ASHL	ARG2,ARG2,1	;Shifting multiplicand left w/respect to prod.
+
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+	.endc
+
+	.if	df,mul_fold
+;	From file mul_fold.s
+; A first step at optimization. The naive multiply gets "unrolled" once,
+; giving a time of 8-10 cycles per pair of bits (4-5 per bit) and checking
+; for bailout only every other shift.
+;
+; 12-160 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (6+(4.5*16)) = 78 cycles.
+; This routine takes 12 instructions, plus the 8 of the common code for
+; 20 instructions (80 bytes).
+
+ARG2B	=	%4
+MCOM:
+.L20:	LSHR.C	MPLIER,MPLIER,1
+	BCC	.L30
+	ASHL	ARG2B,ARG2,1
+	ADD	PROD,PROD,ARG2
+.L30:	LSHR.C	MPLIER,MPLIER,1
+	BCC	.L40
+	ASHL	ARG2,ARG2B,1
+	ADD	PROD,PROD,ARG2B
+.L40	BNE	.L20		;Loop until no more multiplier bits
+	NOP
+
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+	.endc
+
+	.if	df,mul_fold2
+;	From file mul_fold.s, but with later mods.
+; As I was creating this "history", I noticed a few more relatively simple
+; optimizations. By using a LEAS, I eliminated the variable ARG2B, and
+; by careful packing of delay slots got down to 6-8 cycles per bit-pair
+; (3-4 per bit), still checking for bailout only every other shift.
+;
+; 12-131 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (6+(3.5*16)) = 56 cycles.
+; This routine takes 11 instructions, plus the 8 of the common code for
+; 19 instructions (76 bytes).
+
+MCOM:	LSHR.C	MPLIER,MPLIER,1
+.L20:	BCC	.L30
+	LSHR.C	MPLIER,MPLIER,1	; Set up for test at .L30 in delay slot
+	ADD	PROD,PROD,ARG2
+.L30:	BCC	.L40
+	LSHR.C	MPLIER,MPLIER,1	; Set up for tests at .L40, .L20 in delay slot
+	LEAS	PROD,PROD,ARG2	; Use LEAS as Shift/add to eliminate ARG2B
+.L40:	BNE	.L20		;Loop until no more multiplier bits
+	ASHL	ARG2,ARG2,2
+
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+	.endc
+
+	.if	df,mul_dibit
+;	From file mul_dibit.s
+; This version consumes a dibit (two bits) of the multiplier at a time, by
+; executing the appropriate single instruction to compute each partial product.
+; By taking advantage of the ability to essentially "execute" an isolated
+; instruction, and the availability of single instructions for all partial
+; products of 2bits * 32 bits, this routine processes two bits per 8 cycles,
+; or 4 cycles per bit. It costs two extra cycles of overhead to do this so:
+;
+; 15-131 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (8+(4*16)) = 72 cycles.
+; This routine takes 13 instructions, plus the 8 of the common code for
+; 21 instructions (84 bytes).
+;
+; Since mul_fold2.s is both 8 bytes shorter just a touch faster (best and
+; typical cases), there is no real good reason to use mul_dibit. As such
+; it might be considered an "evolutionary dead end", but it does have
+; some interesting descendants, below, in mul_3.s, mul_2.s, mul_1.s
+
+PARTIAL	=	%4
+LOC	=	%5
+LOBITS	=	%6
+MCOM:
+	BSR	LOC,.L10
+	ADD	LOC,LOC,LTABLE-.L10
+; 5-7 cycles entry, plus 2 exit yield 7-9 cycles overhead
+; Each dibit of the multiplier causes one of the instructions
+; at ltable to be executed. 8 cycles/dibit = 4 cycles per bit
+.L10:	AND	LOBITS,MPLIER,3		; look at low dibit of multiplier
+	LSHR.C	MPLIER,MPLIER,2
+	JSR	%0,LOC[LOBITS]
+	BRA	.L20
+
+; One of the following instructions gets executed,
+; depending on the 2 LSB's of the multiplier.
+LTABLE:
+	ADD	PARTIAL,%0,0		; x0
+	ADD	PARTIAL,%0,ARG2		; x1
+	ADD	PARTIAL,ARG2,ARG2	; x2
+	LEAS	PARTIAL,ARG2[ARG2]	; x3
+
+.L20:	ADD	PROD,PROD,PARTIAL
+	BNE	.L10		;Loop until no more multiplier bits
+	ASHL	ARG2,ARG2,2	;Shifting multiplicand left w/respect to prod.
+
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+	.endc
+
+	.if	df,mul_3
+;	From file mul_3.s
+; A more-or-less logical extension of mul_dibit, this version consumes four
+; bits (a nybble) of the multiplier at a time, by executing the appropriate
+; up-to-three-instruction routine to compute each partial product.
+; These routines have different timings (7-10 cycles), with a weighted
+; average of 145/16 (approx 9.06) per 4 bits, or about 2.3 cycles per
+; bit, yeilding:
+;
+; 13-89 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (8+(9*4)) = 44 cycles.
+; This routine takes 64 instructions, plus the 8 of the common code for
+; 72 instructions (288 bytes).
+
+PARTIAL	=	%4
+LOC	=	%5
+LOBITS	=	%6
+
+MCOM:
+	BSR	LOC,.L10
+	ADD	LOC,LOC,LTABLE-.L10
+; 5-7 cycles entry, plus 2 exit yield 7-9 cycles overhead
+; Each nybble of the multiplier has different timing (7-10 cycles), and
+; these repeat for all significant nybbles. We bail out as soon as the
+; multiplier goes to zero.
+.L10:	AND	LOBITS,MPLIER,$0F	; look at low nybble of multiplier
+	LEAS	LOBITS,LOBITS[LOBITS]	; assume Three insn's max per value
+	JSR	%0,LOC[LOBITS]
+	LSHR.C	MPLIER,MPLIER,4
+
+; One of the following (three instruction) sequences gets executed,
+; depending on the 4 LSB's of the multiplier. Those that have the room/time
+; may elide some of the instructions at .L20 and beyond.
+LTABLE:
+; x0 7~
+	BEQ	.L40
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; x1 8~
+	BRA	.L30
+	ADD	PROD,PROD,ARG2
+	ADD	%0,%0,0
+; x2 8~ 
+	BRA	.L30
+	LEAS	PROD,PROD[ARG2]
+	ADD	%0,%0,0
+; x3 9~
+	BRA	.L20
+	LEAS	PARTIAL,ARG2[ARG2]
+	ADD	%0,%0,0
+; x4 8~
+	BRA	.L30
+	LEA	PROD,PROD[ARG2]
+	ADD	%0,%0,0
+; x5 9~
+	BRA	.L20
+	LEA	PARTIAL,ARG2[ARG2]
+	ADD	%0,%0,0
+; x6 9~
+	LEAS	PARTIAL,ARG2[ARG2]
+	BRA	.L30
+	LEAS	PROD,PROD[PARTIAL]
+; x7 10~
+	ASHL	PARTIAL,ARG2,3
+	BRA	.L20
+	SUB	PARTIAL,PARTIAL,ARG2
+; x8 9~
+	BRA	.L20
+	ASHL	PARTIAL,ARG2,3
+	ADD	%0,%0,0
+; x9 10~
+	ASHL	PARTIAL,ARG2,3
+	BRA	.L20
+	ADD	PARTIAL,PARTIAL,ARG2
+; x10 9~
+	LEA	PARTIAL,ARG2[ARG2]
+	BRA	.L30
+	LEAS	PROD,PROD[PARTIAL]
+; x11 10~
+	LEA	PARTIAL,ARG2[ARG2]
+	BRA	.L20
+	LEAS	PARTIAL,ARG2[PARTIAL]
+; x12 10~
+	BRA	.L50
+	ASHL	PARTIAL,ARG2,2
+	ADD	%0,%0,0
+; x13 10~
+	BRA	.L50
+	LEAS	PARTIAL,ARG2[ARG2]
+	ADD	%0,%0,0
+; x14 10~
+	BRA	.L50
+	ASHL	PARTIAL,ARG2,1
+	ADD	%0,%0,0
+; x15 9~
+	BRA	.L60
+	SUB	PROD,PROD,ARG2
+;	ADD	%0,%0,0
+
+.L20:	ADD	PROD,PROD,PARTIAL
+.L30:	BNE	.L10		;Loop until no more multiplier bits
+	ASHL	ARG2,ARG2,4	;Shifting multiplicand left w/respect to prod.
+
+.L40:	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+
+.L50:	SUB	PROD,PROD,PARTIAL
+.L60:	ASHL	ARG2,ARG2,4
+	BNE	.L10
+	ADD	PROD,PROD,ARG2
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+	.endc
+
+	.if	df,mul_2
+;	From file mul_2.s
+; This version suggested by Lyle Rains. It replaces the 3-instruction stamps
+; of mul_3.s with two-instruction stamps. There is a net reduction of nine
+; instructions (36 bytes) of ROM space, with a cost of an extra cycle in the
+; cases of nybbles valued at 0 and 9. This pushes the weighted average to
+; 147/16 (approx 9.18) cycles for 4 bits, or still about 2.3 cycles per bit.
+;
+; 17-97 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (8+(9*4)) = 44 cycles.
+; This routine takes 55 instructions, plus the 8 of the common code for
+; 63 instructions (252 bytes).
+
+PARTIAL	=	%4
+LOC	=	%5
+LOBITS	=	%6
+
+MCOM:
+	BSR	LOC,.L10
+	ADD	LOC,LOC,LTABLE-.L10
+; 5-7 cycles entry, plus 2 exit yield 7-9 cycles overhead
+; Each nybble of the multiplier has different timing (8-11 cycles), and
+; these repeat for all significant nybbles. We bail out as soon as the
+; multiplier goes to zero.
+.L10:	AND	LOBITS,MPLIER,$0F	; look at low nybble of multiplier
+	ASHL	LOBITS,LOBITS,2		; assume Two insn's max per value
+	JSR	%0,LOC[LOBITS]
+	LSHR.C	MPLIER,MPLIER,4
+
+; One of the following (two instruction) sequences gets executed,
+; depending on the 4 LSB's of the multiplier. Those that have the room/time
+; may elide some of the instructions at .L20 and beyond.
+LTABLE:
+; x0 8~
+	BRA	.L30
+	ADD	%0,%0,0
+; x1 8~
+	BRA	.L30
+	ADD	PROD,PROD,ARG2
+; x2 8~ 
+	BRA	.L30
+	LEAS	PROD,PROD[ARG2]
+; x3 9~
+	BRA	.L20
+	LEAS	PARTIAL,ARG2[ARG2]
+; x4 8~
+	BRA	.L30
+	LEA	PROD,PROD[ARG2]
+; x5 9~
+	BRA	.L20
+	LEA	PARTIAL,ARG2[ARG2]
+; x6 9~
+	BRA	.L70
+	LEAS	PARTIAL,ARG2[ARG2]
+; x7 10~
+	BRA	.L15
+	ASHL	PARTIAL,ARG2,3
+; x8 9~
+	BRA	.L20
+	ASHL	PARTIAL,ARG2,3
+; x9 11~
+	BRA	.L45
+	ASHL	PARTIAL,ARG2,3
+; x10 9~
+	BRA	.L70
+	LEA	PARTIAL,ARG2[ARG2]
+; x11 10~
+	BRA	.L50
+	LEA	PARTIAL,ARG2[ARG2]
+; x12 10~
+	BRA	.L50
+	ASHL	PARTIAL,ARG2,2
+; x13 10~
+	BRA	.L50
+	LEAS	PARTIAL,ARG2[ARG2]
+; x14 10~
+	BRA	.L50
+	ASHL	PARTIAL,ARG2,1
+; x15 9~
+	BRA	.L60
+	SUB	PROD,PROD,ARG2
+;	ADD	%0,%0,0
+
+.L15:	SUB	PARTIAL,PARTIAL,ARG2
+.L20:	ADD	PROD,PROD,PARTIAL
+.L30:	BNE	.L10		;Loop until no more multiplier bits
+	ASHL	ARG2,ARG2,4	;Shifting multiplicand left w/respect to prod.
+
+.L40:	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+.L45:	SUB	PARTIAL,PARTIAL,ARG2
+.L50:	SUB	PROD,PROD,PARTIAL
+.L60:	ASHL	ARG2,ARG2,4
+	BNE	.L10
+	ADD	PROD,PROD,ARG2
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+.L70:	LEAS	PROD,PROD[PARTIAL]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+	JSR	%0,RET[0]
+	.endc
+
+	.if	df,mul_1
+;	From file mul_1.s
+; Another version from the fevered brain of Lyle Rains. It replaces the
+; 3-instruction stamps of mul_3.s with (sort of) one-instruction stamps.
+; There is a net reduction of 10 instructions (40 bytes) of ROM space,
+; compared to mul_3, and a per-nybble time of 141/16 (about 2.2 cycles per
+; bit).
+;
+; 13-89 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (8+(9*4)) = 44 cycles.
+; This routine takes 54 instructions, plus the 8 of the common code for
+; 62 instructions (248 bytes).
+
+PARTIAL	=	%4
+LOC	=	%5
+LOBITS	=	%6
+
+MCOM:
+	BSR	LOC,.L10
+	ADD	LOC,LOC,LTABLE-.L10
+; 5-7 cycles entry, plus 2 exit yield 7-9 cycles overhead
+; Each nybble of the multiplier has different timing (7-10 cycles), and
+; these repeat for all significant nybbles. We bail out as soon as the
+; multiplier goes to zero.
+
+.L10:	AND	LOBITS,MPLIER,$0F
+	JSR	%0,LOC[LOBITS]
+	BRA	.L15
+
+;; **** SICK CODE WARNING **** PROCEED WITH CAUTION ****
+;; In the following table, if there is a branch instruction, then a single
+;; instruction at .L15 is executed, and processing continues at the branch
+;; target.  If a it is not a branch, then the instruction is executed and
+;; processing continues at .L15
+;;					loop cycle count:
+LTABLE:
+	BRA	M0			;7
+	BRA	M1			;8
+	BRA	M2			;8
+	BRA	M3			;9
+
+	BRA	M4			;8
+	BRA	M5			;9
+	BRA	M6			;9
+	BRA	M7			;10
+
+	ASHL	PARTIAL,ARG2,3		;9
+	BRA	M9			;10
+	BRA	MA			;9
+	LEA	PARTIAL,ARG2[ARG2]	;9
+
+	ASHL	PARTIAL,ARG2,3		;9
+	LEAS	PARTIAL,ARG2[ARG2]	;9
+	ADD	PARTIAL,ARG2,ARG2	;9
+	ADD	PARTIAL,ARG2,0		;9
+
+.L15:	LSHR.C	MPLIER,MPLIER,4
+	SUB	PROD,PROD,PARTIAL
+	ASHL	ARG2,ARG2,4
+	BNE	.L10
+	ADD	PROD,PROD,ARG2
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+M9:	LEA	PROD,PROD[ARG2]
+M5:	LEA	PROD,PROD[ARG2]
+M1:	ADD	PROD,PROD,ARG2
+M0:	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+M7:	LEA	PROD,PROD[ARG2]
+M3:	ADD	PROD,PROD,ARG2
+M2:	LEAS	PROD,PROD[ARG2]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+;;MA:	LEA	PROD,PROD[ARG2]		;takes 10 cycles instead of 9
+M6:	LEAS	PROD,PROD[ARG2]
+M4:	LEA	PROD,PROD[ARG2]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+MA:     LEA	PARTIAL,ARG2[ARG2]
+	LEAS	PROD,PROD[PARTIAL]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+	.endc
+	.END

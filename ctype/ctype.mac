@@ -1,0 +1,88 @@
+	.globl _ctype_
+	.globl toupper
+	.radix	10.
+.RP	=	%28.
+
+; The following code is fast and correct for ASCII, but takes advantage
+; of the assignment of the "islower" bit to the offset between upper and
+; lower case in ASCII. It probably won't be near as neat in EBCDIC :-)
+; The "isupper" bit is similarly one-half the offset, so a machine that
+; could do shift-and-add could have just as fast a tolower. On the 68000,
+; we accept an extra add-to-self, which is still cheaper than a branch
+; Also note that compilers that default to signed characters will give,
+; uh, _interesting_ results when these are naively used (no cast to unsigned
+; char) with characters that have the high bit set. It was that or screw-up
+; the handling of the (legal) input EOF.
+
+ISLOWER_BIT = 32
+ISUPPER_BIT = 16
+
+toupper:
+	BSR	%2,.L10
+	ADD	%2,%2,_ctype_+1-.L10
+.L10:	LDB %2,%2[%1]
+	AND %2,%2,ISLOWER_BIT
+	JSR %0,.RP[0]
+	SUB %1,%1,%2
+
+	.globl tolower
+tolower:
+	BSR	%2,.L20
+	ADD	%2,%2,_ctype_+1-.L20
+.L20:	LDB %2,%2[%1]
+	AND %2,%2,ISUPPER_BIT
+	JSR %0,.RP[0]
+	LEAS %1,%1[%2]
+
+_ctype_:
+	.byte 0			; EOF
+	.byte 128,128,128,128	; NUL SOH STX ETX
+	.byte 128,128,128,128	; EOT ENQ ACK BEL
+	.byte 128,64,64,64	; BS  HT  LF  VT
+	.byte 64,64,128,128	; FF  CR  SO  SI
+	.byte 128,128,128,128	; DLE DC1 DC2 DC3
+	.byte 128,128,128,128	; DC4 NAK SYN ETB
+	.byte 128,128,128,128	; CAN EM  SUB ESC
+	.byte 128,128,128,128	; FS  GS  RS  US
+	.byte 1,2,2,2		; space ! " #
+	.byte 2,2,2,2		; $ % & '
+	.byte 2,2,2,2		; ( ) * +
+	.byte 2,2,2,2		; , - . /
+	.byte 12,12,12,12	; 0 1 2 3
+	.byte 12,12,12,12	; 4 5 6 7
+	.byte 12,12,2,2		; 8 9 : ;
+	.byte 2,2,2,2		; < = > ?
+	.byte 2,24,24,24	; @ A B C
+	.byte 24,24,24,16	; D E F G
+	.byte 16,16,16,16	; H I J K
+	.byte 16,16,16,16	; L M N O
+	.byte 16,16,16,16	; P Q R S
+	.byte 16,16,16,16	; T U V W
+	.byte 16,16,16,2	; X Y Z [
+	.byte 2,2,2,2		; \ ] ^ _
+	.byte 2,40,40,40	; ` a b c
+	.byte 40,40,40,32	; d e f g
+	.byte 32,32,32,32	; h i j k
+	.byte 32,32,32,32	; l m n o
+	.byte 32,32,32,32	; p q r s
+	.byte 32,32,32,32	; t u v w
+	.byte 32,32,32,2	; x y z {
+	.byte 2,2,2,128		; | } ~ del
+; Now 128 zeroes for the eight-bit characters
+	.byte 0,0,0,0,0,0,0,0	; 80-88
+	.byte 0,0,0,0,0,0,0,0	; 89-8F
+	.byte 0,0,0,0,0,0,0,0	; 90-97
+	.byte 0,0,0,0,0,0,0,0	; 98-9F
+	.byte 0,0,0,0,0,0,0,0	; A0-A7
+	.byte 0,0,0,0,0,0,0,0	; A8-AF
+	.byte 0,0,0,0,0,0,0,0	; B0-B7
+	.byte 0,0,0,0,0,0,0,0	; B8-BF
+	.byte 0,0,0,0,0,0,0,0	; C0-C7
+	.byte 0,0,0,0,0,0,0,0	; C8-CF
+	.byte 0,0,0,0,0,0,0,0	; D0-D7
+	.byte 0,0,0,0,0,0,0,0	; D8-DF
+	.byte 0,0,0,0,0,0,0,0	; E0-E7
+	.byte 0,0,0,0,0,0,0,0	; E8-EF
+	.byte 0,0,0,0,0,0,0,0	; F0-F7
+	.byte 0,0,0,0,0,0,0,0	; F8-FF
+	.end

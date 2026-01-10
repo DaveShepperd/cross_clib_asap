@@ -1,0 +1,132 @@
+
+	.globl	__umulsi3,__mulsi3
+; Multiply subroutines. Assume return address in RET, multiply ARG1 by ARG2
+;	leaving result in PROD
+
+ARG1	=	%1
+ARG2	=	%2
+PROD	=	%1
+RET	=	%28.
+MPLIER	=	%3
+
+; Unsigned multiply is pretty straightforward. A possible speed-up would be to
+; pick the smaller number for the multiplier
+__umulsi3:
+	ADD	MPLIER,%0,ARG1
+	BRA	MCOM
+	ADD	PROD,%0,0	;Clear Product
+
+; Signed multiply _could_ be the same code, but the likelyhood of a negative multiplier
+; wasting cycles (from failure to bail out) make the following a win. If the multiplier
+; is negative, we negate both args.
+
+__mulsi3:
+	ADD.C	MPLIER,%0,ARG1
+	BPL	MCOM
+	ADD	PROD,%0,0	;Clear Product
+
+	SUB	MPLIER,%0,MPLIER
+	SUB	ARG2,%0,ARG2
+
+; __umulsi3 and __mulsi3 merge here at 3 (umul) 3 (mul +) 5 (mul -) cycles past entry.
+;
+; This "core" routine is from file mul_1.s (or corresponding portion of mul_evolve.mac)
+; Another version from the fevered brain of Lyle Rains. It replaces the
+; 3-instruction stamps of mul_3.s with (sort of) one-instruction stamps.
+; There is a net reduction of 10 instructions (40 bytes) of ROM space,
+; compared to mul_3, and a per-nybble time of 141/16 (about 2.2 cycles per
+; bit).
+;
+; 13-89 cycles. A typical application where the multiplier is actually
+; only 16 bits will take approx (8+(9*4)) = 44 cycles.
+; This routine takes 54 instructions, plus the 8 of the common code for
+; 62 instructions (248 bytes).
+
+PARTIAL	=	%4
+LOC	=	%5
+LOBITS	=	%6
+
+MCOM:
+	BSR	LOC,.L10
+	ADD	LOC,LOC,LTABLE-.L10
+; 5-7 cycles entry, plus 2 exit yield 7-9 cycles overhead
+; Each nybble of the multiplier has different timing (7-10 cycles), and
+; these repeat for all significant nybbles. We bail out as soon as the
+; multiplier goes to zero.
+
+.L10:	AND	LOBITS,MPLIER,0xF
+	JSR	%0,LOC[LOBITS]
+	BRA	.L15
+
+;; **** SICK CODE WARNING **** PROCEED WITH CAUTION ****
+;; In the following table, if there is a branch instruction, then a single
+;; instruction at .L15 is executed, and processing continues at the branch
+;; target.  If a it is not a branch, then the instruction is executed and
+;; processing continues at .L15
+;;					loop cycle count:
+LTABLE:
+	BRA	M0			;7
+	BRA	M1			;8
+	BRA	M2			;8
+	BRA	M3			;9
+
+	BRA	M4			;8
+	BRA	M5			;9
+	BRA	M6			;9
+	BRA	M7			;10
+
+	ASHL	PARTIAL,ARG2,3		;9
+	BRA	M9			;10
+	BRA	MA			;9
+	LEA	PARTIAL,ARG2[ARG2]	;9
+
+	ASHL	PARTIAL,ARG2,2		;9
+	LEAS	PARTIAL,ARG2[ARG2]	;9
+	ADD	PARTIAL,ARG2,ARG2	;9
+	ADD	PARTIAL,ARG2,0		;9
+
+.L15:	LSHR.C	MPLIER,MPLIER,4
+	SUB	PROD,PROD,PARTIAL
+	ASHL	ARG2,ARG2,4
+	BNE	.L10
+	ADD	PROD,PROD,ARG2
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+M9:	LEA	PROD,PROD[ARG2]
+M5:	LEA	PROD,PROD[ARG2]
+M1:	ADD	PROD,PROD,ARG2
+M0:	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+M7:	LEA	PROD,PROD[ARG2]
+M3:	ADD	PROD,PROD,ARG2
+M2:	LEAS	PROD,PROD[ARG2]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+;;MA:	LEA	PROD,PROD[ARG2]		;takes 10 cycles instead of 9
+M6:	LEAS	PROD,PROD[ARG2]
+M4:	LEA	PROD,PROD[ARG2]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+MA:     LEA	PARTIAL,ARG2[ARG2]
+	LEAS	PROD,PROD[PARTIAL]
+	BNE	.L10
+	ASHL	ARG2,ARG2,4
+; RTS
+	JSR	%0,RET[0]	; "jmp @ret"
+	ADD.C	PROD,%0,PROD	;Set condition codes for return
+
+	.END

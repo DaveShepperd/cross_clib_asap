@@ -1,0 +1,64 @@
+	.globl	__udivsi3			; Needed for core routine
+	.globl	__umodsi3,__modsi3		; Defined in this file
+	.radix	10.
+; Remainder (not really modulus) subroutines. Assumes return address in .RP,
+; divides NUMER by DENOM and returns REM. These routines are really just wrappers
+; around __udivsi3 (in DIV.MAC, which see) They calculate the peculiar sort or
+; remainder popular on the 68K, which can be _negative_, hence not truly a modulus.
+
+; Inputs and outputs
+NUMER	=	%1
+DENOM	=	%2
+QUOT	=	%1		; Input dividend, output quotient (of __udivsi3)
+REM	=	%2		; Initially 0, ends with remainder (of __udivsi3)
+RESULT	=	%1		; Our return register (remainder)
+.RP	=	%28
+; Temps for all divides (in __udivsi3)
+DIVSOR	=	%3
+BCNT	=	%4
+; These are used by normalize step (in __udivsi3)
+MNYB	=	%5
+BASE	=	%2
+; Used by this file
+SRP	=	%6		; Saved .RP for wrapper
+
+; Signed remainder entry point. Since GCC insists in perpetuating the Vax/68k bogosity
+; of negative moduli (via its power-of-two optimization), we need to do the same.
+; Maybe later we can fix both. For now, a signed remainder is done by taking the
+; absolute value of both numerator and denominator, calling udiv (which returns both 
+; quotient and remainder), and "fixing up" the remainder by negating it if the
+; numerator was negative.
+__modsi3:
+	OR.C	%0,NUMER,0
+	BPL	.M20
+	OR.C	%0,DENOM,0
+	BPL	.M10
+	ADD	SRP,%0,.RP		; In any case, have to save return address
+; -/- case. Negate both, divide, and negate REM
+	SUB	DENOM,%0,DENOM
+; -/+ case. Negate numerator, divide, and negate REM
+.M10:	BSR	.RP,__udivsi3
+	SUB	NUMER,%0,NUMER
+
+	JSR	%0,SRP[0]
+	SUB	RESULT,%0,REM
+
+.M20:	BPL	.M30
+	ADD	SRP,%0,.RP		; In any case, have to save return address
+; +/- case. Negate denominator divide, copy REM
+	SUB	DENOM,%0,DENOM
+; +/+ case. divide and copy REM
+.M30:	BSR	.RP,__udivsi3
+	ADD	%0,%0,0			; Nop (could be filled with insn at dest...)
+
+	JSR	%0,SRP[0]
+	ADD	RESULT,%0,REM
+
+__umodsi3:
+	ADD	SRP,%0,.RP		; Save our caller's return address
+	BSR	.RP,__udivsi3
+	ADD	%0,%0,0			; Nop (could be filled with insn at dest...)
+
+	JSR	%0,SRP[0]
+	ADD	RESULT,%0,REM
+	.end

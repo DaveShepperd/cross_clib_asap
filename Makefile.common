@@ -1,0 +1,34 @@
+MFLAGS = -nobin
+MAC = macas $(MFLAGS)
+CFLAGS =
+INC = -I/usr/local/asap-gca/cross_clib/include
+GCA = gca $(INC) $(CFLAGS)
+ECHO = /usr/bin/echo -e
+
+.SILENT:
+.SUFFIXES : .ol .asm .mac .s .c
+
+show:
+	echo "CSS = $(CSS)"
+	echo "MSS = $(MSS)"
+	echo "SSS = $(SSS)"
+	echo "OBJS = $(OBJS)"
+
+clean:
+	rm -f $(OBJS) *.lis $(SSS)
+
+.asm.ol :
+	$(ECHO) "\tAssembling $< ..."
+	$(MAC) -obj=$@ -lis $<
+
+.mac.ol :
+	$(ECHO) "\tAssembling $< ..."
+	$(MAC) -obj=$@ -lis $<
+
+.s.ol :
+	$(ECHO) "\tAssembling $< ..."
+	$(MAC) -obj=$@ -lis $<
+
+.c.s:
+	$(ECHO) "\tCompiling $< ..."
+	$(GCA) -S $(INC) -o $@ $<

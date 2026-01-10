@@ -1,0 +1,79 @@
+	.globl	main,usirq,sysiret
+	.asect
+	.radix	10.
+	.enabl	dollar_hex
+XPC1	=	%30		; Saved PC at time of exception
+XPC2	=	%31		; Saved address of replaced instruction
+SP	=	%29		; User/system stack ptr
+S_USP	=	12		; offset to saved User Stack ptr
+S_PSL	=	8		; offset to saved Processor status
+S_PC1	=	4		; offset to saved first pc
+S_PC2	=	0		; offset to saved second pc
+SZ_ISF	=	16		; Size of interrupt stack frame
+IEN	=	16		; The I bit of the processor status word
+	.macro	NOP
+	ADD	%0,%0,0
+	.endm
+	.=	0
+RES_VCT:
+	ADD	%30,%0,INIT_SP
+	BRA	main
+	ST	%30,ISP
+	.=	$40
+ILL_VCT:
+	JSR	%0,XPC1[0]
+	JSR.C	%0,XPC2[0]
+	NOP
+	.=	$80
+SYS_VCT:
+	JSR	%0,XPC1[0]
+	JSR.C	%0,XPC2[0]
+	NOP
+	.=	$0C0
+; IRQ prologue, first save the software "user" stack pointer at a fixed address
+; in the first 256K, then get the software "interrupt" stack pointer and "push"
+; the two saved PCs, the PSL, and the user stack pointer
+IRQ_VCT:
+	ST	SP,USP
+	LD	SP,ISP
+	SUB	SP,SP,SZ_ISF
+	ST	SP,ISP
+	ST	XPC1,SP[S_PC1]
+	ST	XPC2,SP[S_PC2]
+	GETPS	XPC2
+	ST	XPC2,SP[S_PSL]
+	LD	XPC1,USP
+	ST	XPC1,SP[S_USP]
+; So much for prologue. At this point interrupts could be re-enabled (providing
+; we had disabled them externally by raising our "level"
+
+;	Useful code goes here..., call User's "irq" routine via BSR.
+; A user who is going to re-enable interrupts must either save XPC1 first
+; or return by jumping to sysiret.
+
+	BSR	XPC1,usirq
+	NOP
+sysiret:
+
+; Now back out again. If we had enabled interrupts, we need to disable them
+; again first. This would happen at the 2nd PUTPS below, because the I bit
+; would be clear in the stacked PSL, but XPC2 could be clobbered by an
+; unfortunately timed IRQ, so the first PUTPS is needed.
+	PUTPS	0
+	LD	XPC2,SP[S_PSL]		; Prepare to restore PSL
+	PUTPS	XPC2
+	ADD	XPC1,SP,0		; Save working stack ptr
+	ADD	SP,SP,SZ_ISF
+	ST	SP,ISP			; pre-pop ram copy of irq SP
+	LD	SP,XPC1[S_USP]		; Restore USP
+	LD	XPC2,XPC1[S_PC2]
+	LD	XPC1,XPC1[S_PC1]
+	JSR	%0,XPC1[0]
+	JSR.C	%0,XPC2[0]
+
+	.psect	udata,seg=2,dat=2
+ISP:	.blkl	1
+USP:	.blkl	1
+	.psect	stack,seg=2,dat=2
+INIT_SP:	
+	.blkl	0
