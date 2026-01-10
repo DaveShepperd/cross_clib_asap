@@ -1,0 +1,159 @@
+	.title	'ASAP mem* functions'
+; This file contains the ASAP assembly source for the Ansi defined
+; functions memchr, memcmp, memcpy, memmove, and memset. For definitions of
+; individual functions, see comments below at each function. GCC_ASAP
+; calling conventions have been used:
+;
+;	32-bit ints,
+;	First five params in R1-R5, remainder on stack,
+;	R1-R10 are caller-save,
+;	all other regs are callee-save.
+;
+; These functions have been coded reasonably carefully but no attempt was
+; made to optimize for long lengths. Partially this was laziness, but partially
+; it was because I had insufficient data on freqency to decide whether the
+; (sometimes large) start-up penalty would be paid back.
+; -- Mike Albaugh
+	.radix	10.
+.SP	=	%29
+.RP	=	%28
+RVAL	=	%1
+
+	.globl	memchr
+; void * memchr ( const void *srch, int chr, size_t len);
+; locates first occurence of char 'chr' within first 'len' chars of array srch.
+; returns pointer to char or NULL if not found.
+
+SRCH	=	%1
+CHR	=	%2
+LEN	=	%3
+memchr:
+	SUB.C	LEN,%0,LEN	; Negate len, and test for zero
+	BEQ	f_ret
+	SUB	SRCH,SRCH,LEN	; Equivalent to adding original length
+
+mch_00:	LDUB	%4,SRCH[LEN]
+mch_05:	SUB.C	%0,%4,CHR
+	BEQ	mch_20
+	ADD.C	LEN,LEN,1
+	BNE	mch_05
+	LDUB	%4,SRCH[LEN]
+f_ret:	JSR	%0,.RP[0]
+	ADD	SRCH,%0,0		; Failure return
+
+mch_20:	SUB	LEN,LEN,1
+	JSR	%0,.RP[0]
+	ADD	SRCH,SRCH,LEN		; Success
+
+	.globl	memcmp
+; int memcmp ( const void *s1, const void *s2, size_t len);
+; compares first 'len' chars of arrays s1 and s2.
+; returns integer <, ==, or < 0 depending on first differing character.
+
+IS1	=	%1
+S1	=	%4
+S2	=	%2
+LEN	=	%3
+memcmp:
+	SUB.C	LEN,%0,LEN	; Negate len, and test for zero
+	BEQ	f_ret
+	SUB	S1,IS1,LEN	; Equivalent to adding original length
+	SUB	S2,S2,LEN	; Equivalent to adding original length
+	
+mcm_00:	LDUB	RVAL,S1[LEN]
+mcm_05:	LDUB	%5,S2[LEN]
+	SUB.C	%1,%1,%5
+	BNE	mcm_10		; Bail at first mismatch with difference in RVAL
+	ADD.C	LEN,LEN,1
+;	BNE	mcm_05
+;	LDUB	RVAL,S1[LEN]
+; Although the above is faster, the below is safer.
+	BNE	mcm_00
+	ADD	%0,%0,0
+
+; count exhausted without mis-match, return difference of last chars compared (equal)
+; pANS specifies that the comparison be done as unsigned chars, which the code
+; does. VAXCRTL has a bug which essentially returns a random non-zero
+; value for unequal, regardless of relative values, while Xenix implementation
+; returns the same result as the typical strcmp(), which is what Xenix man
+; page implies (without stating). Both of those need to be fixed :-)
+mcm_10:	JSR	%0,.RP[0]
+	ADD	%0,%0,0
+
+	.globl	memcpy
+; void * memcpy (void *dst, const void *src, size_t len);
+; copy 'len' chars from array pointed to by 'src' to array pointed to by 'dst'
+; returns dst.
+; No guarantee of "correct" behavior for overlapping src,dst (see memmove)
+
+DST	=	%1
+SRC	=	%2
+LEN	=	%3
+TDST	=	%4
+memcpy:
+	SUB.C	LEN,%0,LEN
+	BEQ	mc_10
+	SUB	TDST,DST,LEN	; Equivalent to adding original length
+mc_SD:	SUB	SRC,SRC,LEN	; Equivalent to adding original length
+	SUB	TDST,TDST,1	; Account for early bump of LEN
+mc_00:	LDUB	%5,SRC[LEN]
+	ADD.C	LEN,LEN,1
+	BNE	mc_00
+	STB	%5,TDST[LEN]
+
+mc_10:	JSR	%0,.RP[0]
+	ADD	%0,%0,0
+
+	.globl	memmove
+; void * memmove (void *dst, const void *src, size_t len);
+; copy 'len' chars from array pointed to by 'src' to array pointed to by 'dst'
+; returns dst.
+; Checks for possible overlap and "does the right thing"
+
+DST	=	%1
+SRC	=	%2
+LEN	=	%3
+TDST	=	%4
+memmove:
+	SUB.C	LEN,%0,LEN
+	BEQ	mc_10
+	SUB.C	%0,DST,SRC
+	BCC	mc_SD
+	SUB	TDST,DST,LEN	; Equivalent to adding original length
+
+; Getting here means SRC is "below" DST, so we move right-to-left instead of
+; memcpy's left-to-right
+; re-invert LEN and loop down past 0
+	SUB	LEN,%0,LEN
+	SUB.C	LEN,LEN,1	; pre-dec, src[len] is not part of move
+
+mm_00:	LDUB	%5,SRC[LEN]
+	STB	%5,DST[LEN]
+	BNE	mm_00
+	SUB.C	LEN,LEN,1
+
+	JSR	%0,.RP[0]
+	ADD	%0,%0,0
+
+	.globl	memset
+; void *memset (void *dst, char chr, size_t len);
+; set first 'len' characters of array pointed to by 'dst' to value 'chr'
+; returns dst
+DST	=	%1
+CHR	=	%2
+LEN	=	%3
+TDST	=	%4
+memset:
+	SUB.C	LEN,%0,LEN
+	BEQ	mc_10
+	SUB	TDST,DST,LEN	; Equivalent to adding original length
+	SUB	TDST,TDST,1	; Account for early bump of LEN
+ms_00:	ADD.C	LEN,LEN,1
+	BNE	ms_00
+	STB	CHR,TDST[LEN]
+
+	JSR	%0,.RP[0]
+	ADD	%0,%0,0
+
+	.END
+

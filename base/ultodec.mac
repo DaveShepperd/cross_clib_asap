@@ -1,0 +1,97 @@
+;  ultodec.mac -  Unsigned long to decimal string conversion routine
+;	int
+;	ultodec( value, string)
+;	  unsigned long value;
+;	  char *string;
+; Returns number of digits in string. Calling with "string" pointing to fewer
+; than 11 (10 digits + '\0') bytes of memory is asking for trouble.
+;
+; There are a few subtleties to note in this code:
+; 1)	The index into the string is itself an indication that we have had
+;	a significant digit.
+; 2)	A "test and conditionally subtact" is used because if we assume
+;	a random distribution of digits, there are 5/3 '1' bits per digit,
+;	out of a possible 4. So we "win" by making the zero case faster.
+; 3)	This is probably swamped by the gain in "short-circuiting" the case
+;	of an entire zero digit.
+	.psect	text,rel,seg=2,dat=2
+	.radix	10.
+; Input params
+VAL	=	%1
+STR	=	%2
+.RP	=	%28
+; Locals
+DIG	=	%3		; Digit accumulator
+PWRPT	=	%4		; Points into power table
+PWR	=	%5		; Current power of ten being tested
+IDX	=	%6		; Index into string (0 until a sig. dig.)
+; Constants
+ZERO	=	'0		; Ascii zero character
+	.globl	__ultodec
+__ultodec:
+	ADD	DIG,%0,0	; Clear digit accumulator
+	ADD	IDX,%0,0	; Init ptr into string
+	BSR	PWRPT,ud_40a	; Start at '4' test for first digit
+	LD	PWR,PWRPT[0]	; Load first power
+powtab: .long	4000000000
+	.long	100000000
+	.long	10000000
+	.long	1000000
+	.long	100000
+	.long	10000
+	.long	1000
+	.long	100
+	.long	10
+	.long	-1
+ud_80:	ASHL	PWR,PWR,3		; change 1... to 8...
+	SUB.C	%0,VAL,PWR
+	BLO	ud_40
+	ADDC	DIG,DIG,DIG		; "shift in" 1 if val >= PWR
+
+	SUB	VAL,VAL,PWR
+ud_40:	LSHR	PWR,PWR,1
+ud_40a:	SUB.C	%0,VAL,PWR
+	BLO	ud_20
+	ADDC	DIG,DIG,DIG		; "shift in" 1 if val >= PWR
+
+	SUB	VAL,VAL,PWR
+ud_20:	LSHR	PWR,PWR,1
+	SUB.C	%0,VAL,PWR
+	BLO	ud_10
+	ADDC	DIG,DIG,DIG		; "shift in" 1 if val >= PWR
+
+	SUB	VAL,VAL,PWR
+ud_10:	LSHR	PWR,PWR,1
+	SUB.C	%0,VAL,PWR
+	BLO	ud_sigtst
+	ADDC	DIG,DIG,DIG		; "shift in" 1 if val >= PWR
+
+	SUB	VAL,VAL,PWR
+ud_sigtst:
+	ADD.C	%0,DIG,IDX		; Set CCs != 0 if either IDX or DIG != 0
+	ADD	DIG,DIG,ZERO
+	STB	DIG,STR[IDX]		; Store digit + '0', regardless
+	ADD	PWRPT,PWRPT,4
+	BEQ	ud_nosig		; Branch if (digit + idx) == 0
+	LD.C	PWR,PWRPT[0]		; Get next power.
+
+	ADD	IDX,IDX,1		; Bump string index if any sig digit.
+ud_nosig:
+	BMI	ud_done			; -1 is sentinal for end.
+	SUB.C	%0,VAL,PWR		; Worth checking individual bits?
+
+	BCS	ud_80			; Yes, do check all four
+	ADD	DIG,%0,0		; Clear digit for next pass
+
+; If PWR greater than val, just emit a zero digit and get next power.
+	BRA	ud_sigtst
+	ADD.C	%0,DIG,IDX		; Copy of test for zero-suppression
+	
+; When "done", have last digit in VAL. just store ascii, to allow single-digit '0'
+ud_done:
+	ADD	DIG,VAL,ZERO
+	STB	DIG,STR[IDX]
+	ADD	VAL,IDX,1		; Count of digits is IDX+1
+
+	JSR	%0,.RP[0]
+	STB	%0,STR[VAL]		; NUL-terminate string

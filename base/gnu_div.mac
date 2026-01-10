@@ -1,0 +1,137 @@
+	.globl	__udivsi3,__divsi3
+	.radix	10.
+; Divide subroutines. Assumes return address in .RP, divides NUMER by DENOM
+;	leaving result in QUOT,REM. This is the appropriate calling/return
+; sequence for the ansi routine div and ldiv (since int and long are both
+; 32-bits on ASAP) as well as __divsi3. stdlib.h therefore #defines div and ldiv
+; to call __divsi3. The core routine is a unsigned divide, labeled as __udivsi3.
+; __divsi3 is implemented as a "wrapper".
+;
+; This is a modification of the naive implementation based on the classic
+; three-register machine. The dividend is shifted one bit at a time left
+; into the DIVHI register, from which is then trial-subracted the divisor.
+; If the subtraction suceeds, it is carried out and a 1 is shifted into the
+; dividend (forming the quotient). If not, a zero is shifted in. The naive
+; version loops for 32 iterations, whereas this version pre-normalizes the
+; dividend so that the first shift sets DIVHI to one, shortening the loop
+; proportionately. At the end of the loop, the remainder is left in DIVHI
+
+; Inputs and outputs
+NUMER	=	%1
+DENOM	=	%2
+QUOT	=	%1		; Input dividend, output quotient
+DIVHI	=	%2		; Initially 0, ends with remainder
+REM	=	%2		; Initially 0, ends with remainder
+.RP	=	%28
+; Temps for all divides
+DIVSOR	=	%3
+BCNT	=	%4
+; These are used by normalize step
+MNYB	=	%5
+BASE	=	%2
+; These are used by signed divide
+SRP	=	%6		; Saved .RP for signed versions
+
+; Signed divide entry point. Since GCC insists in perpetuating the Vax/68k bogosity
+; of negative moduli (via its power-of-two optimization), we need to do the same.
+; Maybe later we can fix both. For now, a signed divide is done by taking the absolute
+; value of both numerator and denominator, calling udiv, and "fixing up" the quotient
+; and remainder. The quotient is negated if the signs of the inputs differed. The
+; remainder is negated if the numerator was negative.
+__divsi3:
+	OR.C	%0,NUMER,DENOM
+	BPL	__udivsi3		; If both positive, can use unsigned div
+	OR.C	%0,NUMER,0		; test sign of numerator
+	BPL	.S10
+	ADD	SRP,%0,.RP		; Save our caller's return address
+; -/? case
+	XOR.C	%0,NUMER,DENOM		; Check same/different signs
+	BMI	.S20			; signs different with NUMER - implies DENOM +
+	SUB	NUMER,%0,NUMER		; make NUMER positive
+
+; -/- Negate denom, call udiv, negate remainder, and return.
+	BSR	.RP,__udivsi3
+	SUB	DENOM,%0,DENOM
+
+	JSR	%0,SRP[0]		; Return, negating remainder in delay slot
+	SUB	REM,%0,REM
+
+; -/+ call udiv, negate quotient and remainder, and return
+.S20:
+	BSR	.RP,UDIVSD		; Goes to _SECOND_ instruction
+	LSHR.C	MNYB,NUMER,16		; Sucked in from __udivsi3
+	
+	SUB	QUOT,%0,QUOT
+	JSR	%0,SRP[0]		; Return, negating remainder in delay slot
+	SUB	REM,%0,REM
+
+; +/- case (must be only one left, we short-circuited +/+) negate denom, call udiv,
+;	negate quotient, and return
+.S10:
+	BSR	.RP,__udivsi3
+	SUB	DENOM,%0,DENOM
+
+	JSR	%0,SRP[0]		; Return, negating quotient in delay slot
+	SUB	QUOT,%0,QUOT
+
+; Unsigned divide entry point.
+__udivsi3:
+
+; This "stamp" lifted form norm.s
+; It computes the number of significant bits in register NUMER. 32-<BCNT>
+; is the right number of places to left-shift NUMER to normalize it.
+; WARNING: The first instruction is copied above, to fill a delay slot. If it is
+; changed, you must change the copy (after BSR to UDIVSD) too.
+
+	LSHR.C	MNYB,NUMER,16
+UDIVSD:
+	BEQ	.L010		; Likely to take, i.e. NUMER <= 0xFFFF
+	ADD	BCNT,%0,8
+	ADD	BCNT,BCNT,16
+.L010:	LSHR.C	MNYB,NUMER,BCNT
+	BNE	.L020
+	ADD	BCNT,BCNT,4
+	SUB	BCNT,BCNT,8
+.L020:	LSHR.C	MNYB,NUMER,BCNT
+	BNE	.L030
+	ADD	DIVSOR,%0,DENOM	; Slop some housekeeping into delay slot
+	SUB	BCNT,BCNT,4
+	LSHR	MNYB,NUMER,BCNT
+; BCNT contains the number of significant nybbles (x4) in the word, while
+; MNYB contains the most significant nybble itself
+.L030:	BSR	BASE,.L050
+	LDB	MNYB,BASE[MNYB]
+	.byte	0,1,2,2		; Shift offset for nybble values 0 1 2 3
+	.byte	3,3,3,3		; Shift offset for nybble values 4 5 6 7
+	.byte	4,4,4,4		; Shift offset for nybble values 8 9 A B
+	.byte	4,4,4,4		; Shift offset for nybble values C D E F
+.L050:	ADD.C	BCNT,BCNT,MNYB
+
+; This is the actual end of the "stamp". 13-17 cycles taken.
+; BCNT contains the number of significant bits in the word
+; Shift MSB of NUMER (aka QUOT) into DIVHI
+;	SUBR	MNYB,BCNT,33
+;	ASHL.C	QUOT,QUOT,MNYB
+	SUBR	MNYB,BCNT,32
+	ASHL	QUOT,QUOT,MNYB
+	ADD.C	QUOT,QUOT,QUOT
+	ADDC	DIVHI,%0,0
+; Compute loop count
+	SUB.C	BCNT,BCNT,1		; n-1 normal cycles plus 1 stub
+	BLE	.L60			; Go straight to stub if BCNT<=1
+	SUB.C	%0,DIVHI,DIVSOR
+.L10:	BCC	.L50
+	ADDC.C	QUOT,QUOT,QUOT	; Shift next bit out, quotient in
+	SUB	DIVHI,DIVHI,DIVSOR
+
+.L50:	ADDC	DIVHI,DIVHI,DIVHI	; Shift next bit in
+	SUB.C	BCNT,BCNT,1
+	BNE	.L10
+	SUB.C	%0,DIVHI,DIVSOR
+; Last cycle does _not_ shift remainder
+.L60:	BCC	.L70
+	ADDC	QUOT,QUOT,QUOT
+	SUB	DIVHI,DIVHI,DIVSOR
+
+.L70:	JSR	%0,.RP[0]		; "jmp @.RP" aka RTS
+	ADD.C	QUOT,%0,QUOT		; set CCs for possible assembly caller

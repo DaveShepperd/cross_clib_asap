@@ -1,0 +1,39 @@
+	.globl	setjmp,longjmp
+;	implements Unix(tm) setjmp(env) and longjmp(env,val)
+	.globl	setjmp
+ENV	=	%1
+.RP	=	%28.
+.SP	=	%29.
+FIRST	=	10.
+LAST	=	29.
+	.macro	STREG what where
+	ST	%'what,ENV[where]
+	.endm
+
+	.macro	LDREG what where
+	LD	%'what,ENV[where]
+	.endm
+
+	.list	meb
+setjmp:
+; Save all non-temp REGISTERS (incl .SP and .RP)
+REGNO	=	FIRST
+	.rept	LAST-FIRST
+	STREG	\REGNO,\((REGNO-FIRST)<<2)
+REGNO	=	REGNO+1
+	.endr
+	JSR	%0,.RP[0]
+	ADD	%1,%0,0			; Return a 0 (orig call)
+; Restore all non-temp regs, including .RP and .SP
+	.globl	longjmp
+longjmp:
+REGNO	=	FIRST
+	.rept	LAST-FIRST
+	LDREG	\REGNO,\((REGNO-FIRST)<<2)
+REGNO	=	REGNO+1
+	.endr
+	JSR	%0,.RP[0]		; return to orig caller of setjmp()
+	ADD	%1,%2,0			; With return val from our caller
+
+	.END
+
