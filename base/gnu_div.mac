@@ -1,5 +1,7 @@
 	.globl	__udivsi3,__divsi3
 	.radix	10.
+	.psect text
+
 ; Divide subroutines. Assumes return address in .RP, divides NUMER by DENOM
 ;	leaving result in QUOT,REM. This is the appropriate calling/return
 ; sequence for the ansi routine div and ldiv (since int and long are both

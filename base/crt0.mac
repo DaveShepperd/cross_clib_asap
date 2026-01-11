@@ -70,7 +70,7 @@ sysiret:
 	LD	XPC1,XPC1[S_PC1]
 	JSR	%0,XPC1[0]
 	JSR.C	%0,XPC2[0]
-
+END_OF_ASECT::
 	.psect	udata,seg=2,dat=2
 ISP:	.blkl	1
 USP:	.blkl	1

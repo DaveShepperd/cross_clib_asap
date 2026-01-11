@@ -1,6 +1,7 @@
 	.globl	__udivsi3			; Needed for core routine
 	.globl	__umodsi3,__modsi3		; Defined in this file
 	.radix	10.
+	.psect text
 ; Remainder (not really modulus) subroutines. Assumes return address in .RP,
 ; divides NUMER by DENOM and returns REM. These routines are really just wrappers
 ; around __udivsi3 (in DIV.MAC, which see) They calculate the peculiar sort or

@@ -2,6 +2,7 @@
 	.globl toupper
 	.radix	10.
 .RP	=	%28.
+	.psect text
 
 ; The following code is fast and correct for ASCII, but takes advantage
 ; of the assignment of the "islower" bit to the offset between upper and

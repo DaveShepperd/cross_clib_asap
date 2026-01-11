@@ -20,6 +20,8 @@
 RVAL	=	%1
 
 	.globl	memchr
+
+	.psect text
 ; void * memchr ( const void *srch, int chr, size_t len);
 ; locates first occurence of char 'chr' within first 'len' chars of array srch.
 ; returns pointer to char or NULL if not found.
