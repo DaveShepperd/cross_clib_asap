@@ -1,5 +1,6 @@
-
 	.globl	__umulsi3,__mulsi3
+	.psect text
+
 ; Multiply subroutines. Assume return address in RET, multiply ARG1 by ARG2
 ;	leaving result in PROD
 

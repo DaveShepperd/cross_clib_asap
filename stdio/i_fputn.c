@@ -17,6 +17,7 @@
 FILE *stdin=NULL;
 FILE *stdout=(FILE *)1;
 FILE *stderr=(FILE *)3;
+int errno;
 
 void i_fputn(
   void          **stream,
@@ -31,10 +32,10 @@ void i_fputn(
   *total_count += i;
   if (repeat)
     while (0 < i--)
-      fputc(*src, *(FILE **)stream);
+      fputc(*src, *(FILE **)stream);	/* Replace this with actual code to do the I/O */
   else
     while (0 < i--)
-      fputc(*src++, *(FILE **)stream);
+      fputc(*src++, *(FILE **)stream);	/* Replace this with actual code to do the I/O */
   *len = 0;
 }
 
