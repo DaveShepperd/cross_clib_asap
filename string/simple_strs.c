@@ -10,6 +10,7 @@
 */
 
 #include <stddef.h>	/* need size_t */
+#include <string.h>
 
 /*	strcat() concatenates (nul-terminated) string src to end of dst.
 *	No check for overflow is made.
@@ -81,6 +82,7 @@ int strncmp (const char *first, const char *second, size_t cnt)
     return (cnt == 0) ? 0 : ( c ? c : -(*s2));
 }
 
+#if 0	/* Moved to simple_strs_macas.mac */
 /*	strcpy() copies (nul-terminated) string src to dst.
 *	No check for overflow is made.
 */
@@ -161,3 +163,5 @@ char *strrchr (const char *src, int chr)
     } while ( c != '\0' );
     return (char *)last;
 }
+
+#endif

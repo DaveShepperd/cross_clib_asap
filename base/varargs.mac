@@ -1,0 +1,154 @@
+r0 = %0
+r1 = %1
+r2 = %2
+r3 = %3
+r4 = %4
+r5 = %5
+.SP = %29
+.RP = %28
+.FP = %27
+.LP = %26
+
+	.psect text
+	.globl _idoprnt, _idonprnt, i_sputn, i_fputn
+	
+.ifeq 1
+; Undo gca's placement of the first 5 arguments in registers
+; and instead put them on the stack in front of any others.
+idoprnt::
+	sub .SP,.SP,(5+1)*4	;room for 5 regs + return addr
+	st .RP,.SP[0*4] ;return addr
+	st r1, .SP[1*4]	;first arg (normally FILE *)
+	st r2, .SP[2*4]	;second arg (normally const char *format)
+	st r3, .SP[3*4]	;third argument if any
+	st r4, .SP[4*4]	;fourth argument if any
+	st r5, .SP[5*4]	;fifth argument if any
+	bsr .RP,_idoprnt
+	add r1, .SP, 1*4	;Points to the first arg
+	ld .RP,.SP[0*4]
+	jsr r0,.RP[0]
+	add .SP,.SP,(5+1)*4
+	
+idonprnt::
+	sub .SP,.SP,(5+1)*4	;room for 5 regs + return addr
+	st .RP,.SP[0*4] ;return addr
+	st r1, .SP[1*4]	;first arg (normally char *)
+	st r2, .SP[2*4]	;second arg (bufLen)
+	st r3, .SP[3*4]	;third argument (normally const char *format)
+	st r4, .SP[4*4]	;fourth argument if any
+	st r5, .SP[5*4]	;fifth argument if any
+	bsr .RP,_idonprnt
+	add r1, .SP, 1*4	;Points to the first arg
+	ld .RP,.SP[0*4]
+	jsr r0,.RP[0]
+	add .SP,.SP,(5+1)*4
+.endc
+	
+;int isprintf( char *buf, const char *format, ... )
+;{
+;  int n;
+;  va_list args;
+;  va_start (args, format);
+;  buf[n = idoprnt(i_sputn, (void *)buf, format, args)] = '\0';
+;  return (n);
+;}
+isprintf::
+	sub .SP,.SP,(6+1)*4	;room for 5 regs, pointer to putn and saved return addr
+	st .RP,.SP[0*4] ;return addr
+	add .RP, r0, i_sputn
+	st .RP,.SP[1*4] ;pointer to function
+	st r1, .SP[2*4]	;first arg (normally FILE *)
+	st r2, .SP[3*4]	;second arg (normally const char *format)
+	st r3, .SP[4*4]	;third argument if any
+	st r4, .SP[5*4]	;fourth argument if any
+	st r5, .SP[6*4]	;fifth argument if any
+	bsr .RP,_idoprnt
+	add r1, .SP, 1*4	;Points to the first arg
+	ld .RP,.SP[0*4]
+	jsr r0,.RP[0]
+	add .SP,.SP,(6+1)*4
+	
+;int ivsprintf( char *buf, const char *format, va_list args )
+;{
+;  int n;
+;  buf[n = idoprnt(i_sputn, (void *)buf, format, args)] = '\0';
+;  return (n);
+;}
+ivsprintf::
+	.long 0
+	
+;int isnprintf( char *buf, int bufLen, const char *format, ... )
+;{
+;  int n;
+;  va_list args;
+;  va_start (args, format);
+;  buf[n = idonprnt(i_sputn, (void *)buf, bufLen, format, args)] = '\0';
+;  return n;
+;}
+isnprintf::
+	sub .SP,.SP,(6+1)*4	;room for 5 regs, pointer to putn and saved return addr
+	st .RP,.SP[0*4] ;return addr
+	add .RP, r0, i_sputn
+	st .RP,.SP[1*4] ;pointer to output function
+	st r1, .SP[2*4]	;first arg (pointer to buffer)
+	st r2, .SP[3*4]	;second arg (buffer len)
+	st r3, .SP[4*4]	;third argument if any (pointer to format)
+	st r4, .SP[5*4]	;fourth argument if any
+	st r5, .SP[6*4]	;fifth argument if any
+	bsr .RP,_idoprnt
+	add r1, .SP, 1*4	;Points to one back from the first arg
+	ld .RP,.SP[0*4]
+	jsr r0,.RP[0]
+	add .SP,.SP,(6+1)*4
+	
+	
+;int ifprintf( FILE *stream, const char *format, ... )
+;{
+;  va_list args;
+;  va_start (args, format);
+;  return idoprnt(i_fputn, stream, format, args);
+;}
+ifprintf::
+	sub .SP,.SP,(6+1)*4	;room for 5 regs, pointer to putn and saved return addr
+	st .RP,.SP[0*4] ;return addr
+	add .RP, r0, i_fputn
+	st .RP,.SP[1*4] ;pointer to output function
+	st r1, .SP[2*4]	;first arg (normally FILE *)
+	st r2, .SP[3*4]	;second arg (normally const char *format)
+	st r3, .SP[4*4]	;third argument if any
+	st r4, .SP[5*4]	;fourth argument if any
+	st r5, .SP[6*4]	;fifth argument if any
+	bsr .RP,_idoprnt
+	add r1, .SP, 1*4	;Points to the first arg
+	ld .RP,.SP[0*4]
+	jsr r0,.RP[0]
+	add .SP,.SP,(6+1)*4
+	
+ivfprintf::
+	.long 0
+
+;int iprintf( const char *format, ... )
+;{
+;  va_list args;
+;  va_start (args, format);
+;  return idoprnt(i_fputn, stream, format, args);
+;}
+iprintf::
+	sub .SP,.SP,(7+1)*4	;room for return addr, pointer to putn, pointer to stream and 5 regs
+	st .RP,.SP[0*4] ;return addr
+	add .RP, r0, i_fputn
+	st .RP,.SP[1*4] ;pointer to output function
+	lea .RP,stdout
+	ld .RP,.RP[0]	;Get stream pointer
+	st .RP,.SP[2*4] ;stream
+	st r1, .SP[3*4]	;first arg (pointer to format)
+	st r2, .SP[4*4]	;second arg (if any)
+	st r3, .SP[5*4]	;third argument if any
+	st r4, .SP[6*4]	;fourth argument if any
+	st r5, .SP[7*4]	;fifth argument if any
+	bsr .RP,_idoprnt
+	add r1, .SP, 1*4	;Points to the first arg
+	ld .RP,.SP[0*4]
+	jsr r0,.RP[0]
+	add .SP,.SP,(7+1)*4
+

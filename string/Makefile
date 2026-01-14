@@ -4,6 +4,7 @@ CSS += simple_strs.c
 CSS += strdup.c
 CSS += strerror.c
 MSS  = mem_func.mac
+MSS += simple_strs_macas.mac
 
 SSS   = $(patsubst %.c,%.s,$(CSS))
 OBJS  = $(patsubst %.s,%.ol,$(SSS))

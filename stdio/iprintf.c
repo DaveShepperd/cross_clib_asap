@@ -7,10 +7,11 @@
 **               This program is placed in the public domain.
 */
 
+/* This functionality has been moved to varargs.mac for the ASAP */
 
-
+#if 0
 #include <stdio.h>
-#include <stdarg.h>
+#include <varargs.h>
 #include <string.h>
 
 int ifprintf( FILE *stream, const char *format, ... )
@@ -20,10 +21,12 @@ int ifprintf( FILE *stream, const char *format, ... )
   return idoprnt(i_fputn, stream, format, args);
 }
 
+#if 0
 int ivfprintf( FILE *stream, const char *format, va_list args )
 {
   return idoprnt(i_fputn, stream, format, args);
 }
+#endif
 
 int iprintf(const char *format, ...) 
 {
@@ -32,8 +35,11 @@ int iprintf(const char *format, ...)
   return idoprnt(i_fputn, stdout, format, args);
 }
 
+#if 0
 int ivprintf( const char *format, va_list args )
 {
   return idoprnt(i_fputn, stdout, format, args);
 }
+#endif
 
+#endif

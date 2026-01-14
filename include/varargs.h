@@ -1,33 +1,30 @@
-#ifndef __GNUC__
-/* Use the system's macros with the system's compiler.  */
-#include <varargs.h>
-#else
-#ifdef __spur__
-#include "va-spur.h"
-#else
+#ifndef _VARARGS_H_
+#define _VARARGS_H_
 
-/* These macros implement traditional (non-ANSI) varargs
-   for GNU C.  */
-
-#define va_alist  __builtin_va_alist
-#define va_dcl    int __builtin_va_alist;
-#define va_list   char *
-
-#ifdef __sparc__
-#define va_start(AP) 						\
- (__builtin_saveregs (),					\
-  AP = ((void *) &__builtin_va_alist))
-#else
-#define va_start(AP)  AP=(char *) &__builtin_va_alist
-#endif
-#define va_end(AP)
+typedef char *va_list;
 
 #define __va_rounded_size(TYPE)  \
   (((sizeof (TYPE) + sizeof (int) - 1) / sizeof (int)) * sizeof (int))
+
+#define va_end(AP)
+
+/* Amount of space required in an argument list for an arg of type TYPE.
+   TYPE may alternatively be an expression whose type is used.  */
 
 #define va_arg(AP, TYPE)						\
  (AP += __va_rounded_size (TYPE),					\
   *((TYPE *) (AP - __va_rounded_size (TYPE))))
 
-#endif /* not spur */
-#endif /* __GNUC__ */
+#if 0
+
+/*****************************************************
+   gca doesn't put the first 5 arguments on the stack
+   so the va_start() thing doesn't work. Have to do it
+   using shims written in assembler. See varargs.mac.
+******************************************************/
+
+#define va_start(AP, LASTARG) 						\
+ (AP = ((char *) &(LASTARG) + __va_rounded_size (LASTARG)))
+#endif
+
+#endif /* _VARARGS_H_ */
