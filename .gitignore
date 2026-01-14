@@ -1,4 +1,8 @@
-.ol
-.s
-.lis
+*.ol
+*.s
+*.lis
+*.lib
 copied*
+*.vtg
+*.vpwhistu
+Debug/*

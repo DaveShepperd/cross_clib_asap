@@ -1,0 +1,171 @@
+.RP = %28.
+.SP = %29.
+.FP = %27.
+.LP = %26
+r0 = %0
+r1 = %1
+r2 = %2
+r3 = %3
+r4 = %4
+r5 = %5
+
+	.psect text
+.ifeq 1
+/*	strcpy() copies (nul-terminated) string src to dst.
+*	No check for overflow is made.
+*/
+
+char *strcpy (char *dst, const char *src)
+{
+    register char *pd;
+
+    pd = dst;
+   /* copy src including NUL */
+    while ( (*pd++ = *src++) != 0 )
+   {
+	   ;
+   }
+    return dst;
+}
+.endc
+
+strcpy::
+	add r5,r1,0
+10$:	ldb.c r4,r2[0]
+	beq 20$
+	stb r4, r5[0]
+	add r5, r5, 1
+	bra 10$
+	add r2, r2, 1
+20$:	jsr r0, .RP[0]
+	nop
+	
+.ifeq 1	
+/*	strncpy() copies at most 'cnt' chars of string src to dst.
+*	No check for overflow is made (other than the presumption that the
+*	caller has allowed enogh room for 'cnt' chars in 'dst')
+*/
+
+char *strncpy (char *dst, const char *src, size_t cnt)
+{
+    char *pd;
+    if ( cnt ) {
+	pd = dst;
+	while ( (*pd++ = *src++) != '\0' ) {
+	    if (--cnt == 0)
+		   return dst;	/* bail out if cnt exceeded */
+	}
+	/* now fill remainder if any with NULs. Yes, the pANS says we do,
+	*  although strncat() doesn't
+	*/
+	if ( --cnt )
+	       memset(pd,0,cnt);
+    }
+    return dst;
+}
+.endc
+strncpy::
+	add r5, r1, 0
+	or.c r0, r3, r0
+	beq 20$
+10$:	ldb.c r4,r2[0]
+	beq 20$
+	stb r4, r5[0]
+	add r2, r2, 1
+	sub.c r3, r3, 1
+	bgt 10$
+	add r5, r5, 1
+20$:	jsr r0, .RP[0]
+	nop
+
+.ifeq 1
+/*	strlen() returns the number of chars in the (nul-terminated) string
+*	src (not counting the nul).
+*/
+
+size_t strlen (const char *src)
+{
+    const char *ps;
+   /* find NUL at end of src */
+    for ( ps = src ; *ps ; ++ps )
+   {
+	   ;
+   }
+    return ps - src;
+}
+.endc
+strlen::
+	add r2, r1, 0
+	add r1, 0, 0
+10$:	ldb.c r0, r2[0]
+	beq 20$
+	add r2, r2, 1
+	bra 10$
+	add r1, r1, 1
+20$:	jsr r0,.RP[0]
+	nop
+
+.ifeq 1
+/*	strchr() returns a pointer to the first occurence of 'chr' in string
+*	at 'src'. If no instance of 'chr', returns the null pointer.
+*/
+char *strchr (const char *src, int chr)
+{
+    int c;
+    for ( ; ( c = *src ) != chr ; ++src )
+	   if ( c == '\0' ) return 0;
+    return (char *)src;
+}
+.endc
+
+strchr::
+10$:
+	ldb.c r3,r1[0]
+	beq 20$
+	sub.c r0, r3, r2
+	beq 30$
+	nop
+	bra 10$
+	add r1,r1,1
+20$:	add r1, r0, 0
+30$:	jsr r0,.RP[0]
+	nop
+
+.ifeq 1
+/*	strrchr() returns a pointer to the last occurence of 'chr' in string
+*	at 'src'. If no instance of 'chr', returns the null pointer.
+*/
+char *strrchr (const char *src, int chr)
+{
+    int c;
+    const char *last = NULL;
+    do {
+	if ( (c = *src) == chr )
+	       last = src;
+	++src;
+    } while ( c != '\0' );
+    return (char *)last;
+}
+.endc
+
+strrchr::
+	add r3,r1,0
+	add r4,r1,0
+10$:	ldb.c r0,r3[0]
+	beq 20$
+	nop
+	bra 10$
+	add r3, r3, 1
+
+20$:	sub.c r0, r3, r4
+	ble 30$
+	ldb r5, r3[0]
+	sub.c r0, r5, r2
+	beq 40$
+	add r1, r3, 0
+	bra 20$
+	sub r3, r3, 1
+
+30$:	add r1, r0, 0
+40$:	jsr r0, .RP[0]
+	nop

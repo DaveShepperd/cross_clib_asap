@@ -8,8 +8,6 @@
 *       needed/written MEA 1DEC1989
 */
 
-#include <stdarg.h>
-
 typedef int FILE;
 extern FILE ctlchan;
 
@@ -28,7 +26,10 @@ extern long ftell(FILE *fp);
 extern int  fputs(const char *str, FILE *fp);
 extern int  fflush(FILE *fp);
 extern int  ifprintf(FILE *fp, const char *buf, ...);
+
+#if 0
 extern int  ivfprintf(FILE *fp, const char *buf, va_list args);
+#endif
 
 #define putc fputc
 #define putchar(x) fputc(x,stdout)

@@ -1,8 +1,6 @@
 ;  ultodec.mac -  Unsigned long to decimal string conversion routine
 ;	int
-;	ultodec( value, string)
-;	  unsigned long value;
-;	  char *string;
+;	ultodec( uint32_t value, char *string)
 ; Returns number of digits in string. Calling with "string" pointing to fewer
 ; than 11 (10 digits + '\0') bytes of memory is asking for trouble.
 ;

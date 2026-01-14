@@ -8,16 +8,12 @@
 */
 
 
+#if 0	/* This function has been moved to i_fputn_macas.mac */
 /* This function is expected to be superceeded by a platform specific re-write */
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-
-FILE *stdin=NULL;
-FILE *stdout=(FILE *)1;
-FILE *stderr=(FILE *)3;
-int errno;
 
 void i_fputn(
   void          **stream,
@@ -38,4 +34,4 @@ void i_fputn(
       fputc(*src++, *(FILE **)stream);	/* Replace this with actual code to do the I/O */
   *len = 0;
 }
-
+#endif

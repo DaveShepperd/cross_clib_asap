@@ -10,7 +10,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-static void i_sputn( void **iDest, const char *string, int *count, int *total_count, int repeat)
+void i_sputn( void **iDest, const char *string, int *count, int *total_count, int repeat)
 {
   char *dest = *(char **)iDest;
   int i = *count;
@@ -25,6 +25,8 @@ static void i_sputn( void **iDest, const char *string, int *count, int *total_co
   return;
 }
 
+/* These functions have been moved to varargs.mac for the ASAP */
+#if 0
 int isprintf( char *buf, const char *format, ... )
 {
   int n;
@@ -56,3 +58,4 @@ int ivsnprintf( char *buf, int bufLen, const char *format, va_list args )
   buf[n = idonprnt(i_sputn, (void *)buf, bufLen, format, args)] = '\0';
   return (n);
 }
+#endif
