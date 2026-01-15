@@ -1,6 +1,6 @@
 MFLAGS = -nobin
 MAC = macas $(MFLAGS)
-CFLAGS =
+CFLAGS = -O
 INC = -I/usr/local/asap-gca/cross_clib/include
 GCA = gca $(INC) $(CFLAGS)
 ECHO = /usr/bin/echo -e
