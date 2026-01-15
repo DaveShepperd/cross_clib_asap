@@ -19,15 +19,15 @@ clean:
 
 .asm.ol :
 	$(ECHO) "\tAssembling $< ..."
-	$(MAC) -obj=$@ -lis $<
+	$(MAC) -obj=$@ -lis -2 $<
 
 .mac.ol :
 	$(ECHO) "\tAssembling $< ..."
-	$(MAC) -obj=$@ -lis $<
+	$(MAC) -obj=$@ -lis -2 $<
 
 .s.ol :
 	$(ECHO) "\tAssembling $< ..."
-	$(MAC) -obj=$@ -lis $<
+	$(MAC) -obj=$@ -lis -2 $<
 
 .c.s:
 	$(ECHO) "\tCompiling $< ..."

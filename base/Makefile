@@ -5,7 +5,6 @@ MSS += gnu_mod.mac
 MSS += gnu_mul.mac
 MSS += isqrt.mac
 MSS += mul_evolve.mac
-MSS += varargs.mac
 MSS += ultodec.mac
 
 SSS   = $(patsubst %.c,%.s,$(CSS))

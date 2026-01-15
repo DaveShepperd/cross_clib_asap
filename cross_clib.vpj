@@ -266,9 +266,11 @@
 			GUID="{DB590623-5DF9-4729-9962-BA0B4CB09AD3}">
 			<F N="string/complex_str.c"/>
 			<F N="stdio/i_fputn.c"/>
+			<F N="stdio/idonprnt.c"/>
 			<F N="stdio/idoprnt.c"/>
 			<F N="stdio/iprintf.c"/>
 			<F N="stdio/isprintf.c"/>
+			<F N="string/mem_func.c"/>
 			<F N="stdio/perror.c"/>
 			<F N="stdlib/random.c"/>
 			<F N="string/simple_strs.c"/>
@@ -285,6 +287,7 @@
 			<F N="include/ctype.h"/>
 			<F N="include/errno.h"/>
 			<F N="include/floatio.h"/>
+			<F N="include/idoprnt.h"/>
 			<F N="include/limits.h"/>
 			<F N="include/setjmp.h"/>
 			<F N="include/size_t.h"/>
@@ -315,12 +318,15 @@
 			<F N="base/gnu_mod.mac"/>
 			<F N="base/gnu_mul.mac"/>
 			<F N="stdio/i_fputn_macas.mac"/>
+			<F N="stdio/i_sputn_macas.mac"/>
 			<F N="base/isqrt.mac"/>
+			<F N="string/mem_func.mac"/>
 			<F N="base/mul_evolve.mac"/>
+			<F N="setjmp/setjmp.mac"/>
 			<F N="string/simple_strs_macas.mac"/>
 			<F N="base/stdarg.mac"/>
 			<F N="base/ultodec.mac"/>
-			<F N="base/varargs.mac"/>
+			<F N="stdio/varargs.mac"/>
 		</Folder>
 	</Files>
 </Project>

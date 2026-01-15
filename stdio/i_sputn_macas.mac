@@ -1,0 +1,76 @@
+reg = 0
+.macro nr num
+r'num = %num
+.endm
+.rept 32
+nr \reg
+reg = reg + 1
+.endr
+
+.SP = %29
+.RP = %28
+.FP = %27
+.LP = %26
+
+	.psect text
+
+.ifeq 1
+void i_sputn( void **iDest, const char *string, int *count, int *total_count, int repeat)
+{
+  char *dest = *(char **)iDest;
+  int i = *count;
+
+  *total_count += i;
+  if (repeat)
+    (void) memset((void *)dest, *string, i);
+  else
+    (void) memcpy((void *)dest, string, i);
+  *dest += i;
+  *count = 0;
+  return;
+}
+.endc
+
+;At entry:
+dstPtrPtr = r1
+srcPtr = r2
+lenPtr = r3
+total_count = r4
+repeat = r5
+len = r6
+tmp = r7
+dstPtr = r8
+
+i_sputn::
+	ld dstPtr,dstPtrPtr[0]		;get pointer to dest
+	ld.c len,lenPtr[0] ;get length from caller
+	beq 30$		;Empty string, nothing to do
+	ld tmp,total_count[0]	;compute *total_count += len
+	add tmp,len,0
+	st tmp,total_count[0]
+	or.c r0,repeat,0 ;.ne. if to repeat one char
+	bne 20$
+	st r0,lenPtr[0]	;clear caller's length
+	
+	or.c r0,len,0	;check count.
+10$:	ble 30$		;done
+	sub len,len,1	;take one from count
+	ldb tmp,srcPtr[0]  ;get byte
+	stb tmp,dstPtr[0]  ;store byte
+	add srcPtr,srcPtr,1 ;advance source pointer
+	add dstPtr,dstPtr,1 ;advance dest pointer
+	bra 10$
+	or.c r0,len,0	;check count.
+	
+20$:	or.c r0,len,0	;check count.
+	ldb tmp,srcPtr[0] ;get char to repeat
+25$:	ble 30$		;done
+	sub len,len,1	;take one from count
+	stb tmp,dstPtr[0] ;store byte
+	add dstPtr,dstPtr,1 ;advance dest pointer
+	bra 25$
+	or.c r0,len,0	;check count.
+	
+30$:	jsr r0,.RP[0]
+	st dstPtr,dstPtrPtr[0]	;return updated string pointer
+
