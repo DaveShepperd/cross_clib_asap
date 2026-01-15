@@ -1,14 +1,10 @@
 /*
-**    IDOPRINT.C : integer, char, string only version of _doprint()
+**    IDONPRINT.C : integer, char, string only version of _doprint()
 */
 
 #ifdef  DOCUMENTATION
 
-Synopsis int idoprnt(
-doFPrintFunc	i_putn,
-const char     *format,
-va_list         arglist
-);
+Synopsis int idonprnt( va_list args );
 
 Description idoprnt() performs all formatting operations for iprintf()
 and related formatted output functions.
@@ -21,7 +17,7 @@ Hacked up a little bit by Dave Shepperd, 2026-01-11
 
 #include <idoprnt.h>
 
-int _idoprnt( va_list argp )                 /* Argument vector pointer      */
+int _idonprnt( va_list argp )              /* Argument vector pointer      */
 {
 	int    c;
 	char            numstr[NUMSIZE];        /* Numeric arg string buffer    */
@@ -32,31 +28,40 @@ int _idoprnt( va_list argp )                 /* Argument vector pointer      */
 	long            value;
 	ArgPrefix_t     argPrefix;
 	doFPrintFunc    i_putn;                 /* String output routine        */
-	FILE            *dest;                  /* A file pointer               */
+	char            *dest;                  /* A pointer to buffer          */
+	int		    bufLen;                 /* Length of buffer in bytes    */
 	const char      *format;                /* Format string                */
 
 	i_putn = (doFPrintFunc)va_arg(argp,doFPrintFunc);
-	dest = va_arg(argp,FILE *);
+	dest = va_arg(argp,char *);
+	bufLen = va_arg(argp,int);
 	format = va_arg(argp,const char *);
 	total_count = 0;
+	--bufLen;         /* leave room for trailing null */
 	while ( (arg_str = strchr(format, '%')) != NULL )
 	{
 		prefix[0] = 0;
 		prefix[1] = 0;
 		prefix[2] = 0;
-		if ( (argPrefix.arg_len = arg_str - format) )
-		    PUTNSTR(format, &argPrefix.arg_len);
-		++arg_str;		/* advance over the '%' */
-		format = arg_str;	/* bump format pointer */
+		argPrefix.arg_len = arg_str - format;
+		if ( argPrefix.arg_len > bufLen )
+			argPrefix.arg_len = bufLen;
+		if ( argPrefix.arg_len )
+			PUTNSTR(format, &argPrefix.arg_len);
+		bufLen -= argPrefix.arg_len;
+		format = ++arg_str;
 		/*
 		** Handle special case "%%"
 		*/
 		if ( *format == '%' )
 		{
+		    if ( bufLen > 0 )
+		    {
 			argPrefix.arg_len = 1;
 			PUTNSTR(format, &argPrefix.arg_len);
 			++format;
-			continue;
+		    }
+		    continue;
 		}
 		/*
 		** Process flags
@@ -86,7 +91,7 @@ int _idoprnt( va_list argp )                 /* Argument vector pointer      */
 		/*
 		** Process width field
 		*/
-        argPrefix.zerofill = FALSE;
+		argPrefix.zerofill = FALSE;
 		if ( c == '0' )
 		{
 			c = *format++;
@@ -141,7 +146,7 @@ int _idoprnt( va_list argp )                 /* Argument vector pointer      */
 			numstr[0] = (char)(va_arg(argp, int));
 			arg_str = numstr;
 			argPrefix.arg_len = 1;
-            argPrefix.zerofill = FALSE;
+            argPrefix.zerofill = FALSE; 
 			goto send_it;
 		case 's':
 			arg_str = va_arg(argp, char *);
@@ -228,14 +233,32 @@ int _idoprnt( va_list argp )                 /* Argument vector pointer      */
 				if ( argPrefix.zerofill )
 				{
 					fill = "0";
+					if ( argPrefix.pfx_len > bufLen )
+						argPrefix.pfx_len = bufLen;
 					PUTNSTR(pfx_str, &argPrefix.pfx_len);
+					bufLen -= argPrefix.pfx_len;
 				}
+				if ( argPrefix.fill_cnt > bufLen )
+					argPrefix.fill_cnt = bufLen;
 				PUTNCHR(fill, &argPrefix.fill_cnt);
+				bufLen -= argPrefix.fill_cnt;
 			}
+			if ( argPrefix.pfx_len > bufLen )
+				argPrefix.pfx_len -= bufLen;
 			PUTNSTR(pfx_str, &argPrefix.pfx_len);     /* might do nothing (see note above) */
+			bufLen -= argPrefix.pfx_len;
+			if ( argPrefix.prec_cnt > bufLen )
+				argPrefix.prec_cnt = bufLen;
 			PUTNCHR("0", &argPrefix.prec_cnt);
+			bufLen -= argPrefix.prec_cnt;
+			if ( argPrefix.arg_len > bufLen )
+				argPrefix.arg_len = bufLen;
 			PUTNSTR(arg_str, &argPrefix.arg_len);
+			bufLen -= argPrefix.arg_len;
+			if ( argPrefix.fill_cnt > bufLen )
+				argPrefix.fill_cnt = bufLen;
 			PUTNCHR(" ", &argPrefix.fill_cnt);        /* might do nothing (see note above) */
+			bufLen -= argPrefix.fill_cnt;
 			break;
 
 		default:
@@ -249,9 +272,13 @@ int _idoprnt( va_list argp )                 /* Argument vector pointer      */
 	/*
 	** Output tail of format string
 	*/
-	if ( (argPrefix.arg_len = strlen(format)) )
+	argPrefix.arg_len = strlen(format);
+	if ( argPrefix.arg_len > bufLen )
+		argPrefix.arg_len = bufLen;
+	if ( argPrefix.arg_len )
 		PUTNSTR(format, &argPrefix.arg_len);
+	argPrefix.arg_len = 1;
+	PUTNCHR("\000", &argPrefix.arg_len);
+	--total_count;
 	return (total_count);
 }
-
-

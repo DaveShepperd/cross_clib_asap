@@ -57,7 +57,7 @@ isprintf::
 	st .RP,.SP[0*4] ;return addr
 	add .RP, r0, i_sputn
 	st .RP,.SP[1*4] ;pointer to function
-	st r1, .SP[2*4]	;first arg (normally FILE *)
+	st r1, .SP[2*4]	;first arg (normally char *)
 	st r2, .SP[3*4]	;second arg (normally const char *format)
 	st r3, .SP[4*4]	;third argument if any
 	st r4, .SP[5*4]	;fourth argument if any
@@ -95,7 +95,7 @@ isnprintf::
 	st r3, .SP[4*4]	;third argument if any (pointer to format)
 	st r4, .SP[5*4]	;fourth argument if any
 	st r5, .SP[6*4]	;fifth argument if any
-	bsr .RP,_idoprnt
+	bsr .RP,_idonprnt
 	add r1, .SP, 1*4	;Points to one back from the first arg
 	ld .RP,.SP[0*4]
 	jsr r0,.RP[0]

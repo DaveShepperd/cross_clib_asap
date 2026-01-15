@@ -48,14 +48,16 @@ LOC	=	%5
 LOBITS	=	%6
 
 MCOM:
-	BSR	LOC,.L10
-	ADD	LOC,LOC,LTABLE-.L10
+	LDLIT	LOC,LTABLE
+;	BSR	LOC,.L10
+;	ADD	LOC,LOC,LTABLE-.L10
 ; 5-7 cycles entry, plus 2 exit yield 7-9 cycles overhead
 ; Each nybble of the multiplier has different timing (7-10 cycles), and
 ; these repeat for all significant nybbles. We bail out as soon as the
 ; multiplier goes to zero.
 
-.L10:	AND	LOBITS,MPLIER,0xF
+.L10:
+	AND	LOBITS,MPLIER,0xF
 	JSR	%0,LOC[LOBITS]
 	BRA	.L15
 
@@ -66,27 +68,28 @@ MCOM:
 ;; processing continues at .L15
 ;;					loop cycle count:
 LTABLE:
-	BRA	M0			;7
-	BRA	M1			;8
-	BRA	M2			;8
-	BRA	M3			;9
+	BRA	M0			;7  - *0
+	BRA	M1			;8  - *1
+	BRA	M2			;8  - *2
+	BRA	M3			;9  - *3
 
-	BRA	M4			;8
-	BRA	M5			;9
-	BRA	M6			;9
-	BRA	M7			;10
+	BRA	M4			;8  - *4
+	BRA	M5			;9  - *5
+	BRA	M6			;9  - *6
+	BRA	M7			;10 - *7
 
-	ASHL	PARTIAL,ARG2,3		;9
-	BRA	M9			;10
-	BRA	MA			;9
-	LEA	PARTIAL,ARG2[ARG2]	;9
+	ASHL	PARTIAL,ARG2,3		;9  - *8
+	BRA	M9			;10 - *9
+	BRA	MA			;9  - *10
+	LEA	PARTIAL,ARG2[ARG2]	;9  - *11
 
-	ASHL	PARTIAL,ARG2,2		;9
-	LEAS	PARTIAL,ARG2[ARG2]	;9
-	ADD	PARTIAL,ARG2,ARG2	;9
-	ADD	PARTIAL,ARG2,0		;9
+	ASHL	PARTIAL,ARG2,2		;9  - *12
+	LEAS	PARTIAL,ARG2[ARG2]	;9  - *13
+	ADD	PARTIAL,ARG2,ARG2	;9  - *14
+	ADD	PARTIAL,ARG2,0		;9  - *15
 
-.L15:	LSHR.C	MPLIER,MPLIER,4
+.L15:
+	LSHR.C	MPLIER,MPLIER,4
 	SUB	PROD,PROD,PARTIAL
 	ASHL	ARG2,ARG2,4
 	BNE	.L10

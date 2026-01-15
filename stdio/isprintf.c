@@ -6,6 +6,7 @@
 **               This program is placed in the public domain.
 */
 
+#if 0	/* This has been moved to i_sputn_macas.mac */
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -24,6 +25,7 @@ void i_sputn( void **iDest, const char *string, int *count, int *total_count, in
   *count = 0;
   return;
 }
+#endif
 
 /* These functions have been moved to varargs.mac for the ASAP */
 #if 0
